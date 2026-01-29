@@ -4,55 +4,53 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ESP8266 Sensor Dashboard</title>
+
 <style>
-  body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: #f0f4f8;
-    color: #333;
-    margin: 0;
-    padding: 0;
-  }
-  header {
-    background: #1e88e5;
-    color: #fff;
-    padding: 20px;
-    text-align: center;
-    font-size: 1.5em;
-  }
-  .container {
-    max-width: 600px;
-    margin: 30px auto;
-    background: #fff;
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  }
-  .sensor {
-    display: flex;
-    justify-content: space-between;
-    margin: 12px 0;
-    font-size: 1.2em;
-  }
-  .status-ok { color: green; font-weight: bold; }
-  .status-warning { color: orange; font-weight: bold; }
-  .status-alert { color: red; font-weight: bold; }
-  .led-control {
-    text-align: center;
-    margin-top: 20px;
-  }
-  .led-control button {
-    padding: 12px 24px;
-    margin: 0 10px;
-    font-size: 1em;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    color: #fff;
-  }
-  .btn-on { background: #4caf50; }
-  .btn-off { background: #f44336; }
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #f0f4f8;
+  margin: 0;
+}
+header {
+  background: #1e88e5;
+  color: #fff;
+  padding: 20px;
+  text-align: center;
+  font-size: 1.5em;
+}
+.container {
+  max-width: 600px;
+  margin: 30px auto;
+  background: #fff;
+  padding: 20px;
+  border-radius: 12px;
+}
+.sensor {
+  display: flex;
+  justify-content: space-between;
+  margin: 12px 0;
+  font-size: 1.2em;
+}
+.status-ok { color: green; font-weight: bold; }
+.status-warning { color: orange; font-weight: bold; }
+.status-alert { color: red; font-weight: bold; }
+.led-control {
+  text-align: center;
+  margin-top: 20px;
+}
+button {
+  padding: 12px 24px;
+  margin: 0 10px;
+  border-radius: 8px;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+}
+.btn-on { background: #4caf50; }
+.btn-off { background: #f44336; }
 </style>
 </head>
+
 <body>
 
 <header>ESP8266 Sensor Dashboard</header>
@@ -61,7 +59,7 @@
   <div class="sensor">Light: <span id="light">--</span></div>
   <div class="sensor">Temperature: <span id="temp">--</span> °C</div>
   <div class="sensor">Distance: <span id="distance">--</span> cm</div>
-  <div class="sensor">Status: <span id="status" class="status-ok">--</span></div>
+  <div class="sensor">Status: <span id="status">--</span></div>
 
   <div class="led-control">
     <button class="btn-on" onclick="setLED(1)">LED ON</button>
@@ -69,37 +67,43 @@
   </div>
 </div>
 
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
 <script>
-  // ฟังก์ชันดึงข้อมูลเซ็นเซอร์จาก ESP8266
-  function updateSensors() {
-    fetch('/sensors')
-      .then(response => response.json())
-      .then(data => {
-        document.getElementById('light').innerText = data.light;
-        document.getElementById('temp').innerText = data.temp.toFixed(1);
-        document.getElementById('distance').innerText = data.distance;
+var firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "kana-a6e97.firebaseapp.com",
+  databaseURL: "https://kana-a6e97-default-rtdb.firebaseio.com",
+  projectId: "kana-a6e97"
+};
 
-        const statusEl = document.getElementById('status');
-        statusEl.innerText = data.status;
+firebase.initializeApp(firebaseConfig);
+var db = firebase.database();
 
-        // เปลี่ยนสีตามสถานะ
-        if (data.status === 'OK') statusEl.className = 'status-ok';
-        else if (data.status.includes('Low Light') || data.status.includes('Object Close')) statusEl.className = 'status-warning';
-        else if (data.status.includes('High Temp')) statusEl.className = 'status-alert';
-      })
-      .catch(err => console.error('Error fetching sensor data:', err));
-  }
+// อ่านข้อมูล Sensor
+db.ref("Sensor").on("value", snapshot => {
+  const d = snapshot.val();
+  if (!d) return;
 
-  // ฟังก์ชันสั่ง LED
-  function setLED(state) {
-    fetch(`/led?state=${state}`)
-      .then(response => console.log('LED set:', state))
-      .catch(err => console.error('Error setting LED:', err));
-  }
+  document.getElementById("light").innerText = d.Light;
+  document.getElementById("temp").innerText = d.Temp;
+  document.getElementById("distance").innerText = d.Distance;
 
-  // อัปเดตทุก 2 วินาที
-  setInterval(updateSensors, 2000);
-  updateSensors(); // เรียกทันทีตอนโหลดหน้า
+  const statusEl = document.getElementById("status");
+  statusEl.innerText = d.Status;
+
+  statusEl.className =
+    d.Status.includes("High") ? "status-alert" :
+    d.Status.includes("Low") || d.Status.includes("Object") ? "status-warning" :
+    "status-ok";
+});
+
+// สั่ง LED ผ่าน Firebase
+function setLED(state) {
+  db.ref("Sensor/LED").set(state);
+}
 </script>
 
 </body>
